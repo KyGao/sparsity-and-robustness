@@ -7,8 +7,9 @@ original articals:
 
 ### Saliency-based（贪心法，按重要性排序）
 > smaller-norm-less-important 准则
-2016~ *Pruning Filters for Efficient ConvNets*
-2016年的经典论文，把权重的绝对值作为衡量重要性的手段。但是如果训练出来的权重不稀疏，即 variance 很小，常用的方法就是在训练时的 loss 中加 regularizer 使权重分布稀疏化。
+
+2016~ [Pruning Filters for Efficient ConvNets](https://arxiv.org/pdf/1608.08710.pdf)
+2016年的经典论文，评判标准很简单，就是靠weight：对于一个filter，其中所有weight的绝对值求和，值低的filter裁掉。因为filter裁掉意味着对应的feature map也被裁掉，所以下一层对应的kernel也被裁掉。但是如果训练出来的权重不稀疏，即 variance 很小，常用的方法就是在训练时的 loss 中加 regularizer 使权重分布稀疏化。
 
 2015-16~ *Learning Structured Sparsity in Deep Neural Networks*, *Sparse Convolutional Neural Networks*
 属于structured pruning，表明了想获得结构化的稀疏权重，常用 Group Lasso来得到
@@ -16,8 +17,8 @@ original articals:
 2017~ *Learning Efficient Neural Networks Trough Network Slimming*
 用BN层的 scaling factor 作为重要性度量，在BN层加入channel-wise scaling factor并加L1正则项使之稀疏，剪掉scaling factor值小的部分对应的权重
 
-2016~ *Network Trimming: A Data-Driven Neuron Pruning Approach towards Efficient Deep Architectures*
-一般来说，像ReLU这样的激活函数本身会倾向于产生稀疏的activation，这样就不需要外力（正则项）来使它变得稀疏。这篇文章就提出采用Average Percentage of Zeros，即APoZ来衡量activation的重要性，定义为activation中0的比例。
+2016~ [Network Trimming: A Data-Driven Neuron Pruning Approach towards Efficient Deep Architectures](https://arxiv.org/abs/1607.03250)
+一般来说，像ReLU这样的激活函数本身会倾向于产生稀疏的activation，这样就不需要外力（正则项）来使它变得稀疏。这篇文章就提出采用Average Percentage of Zeros，即APoZ来衡量activation的重要性，用每一个filter中激活为0的值的数量，来作为评价一个filter是否重要的标准。作者发现在VGG-16中，有631个filter的APoZ超过了90%，也就说明了网络中存在大量的冗余。但是作者仅在最后一个卷积层和全连接层上进行了实验，因此该方法在实际中的效果很难保证
 
 2018~*Filter Pruning via Geometric Median for Deep Convolutional Neural Networks Acceleration*
 讨论了magnitude-based方法的前提与局限（即需要其范数值方差大，且最小值接近于0）。它提出了 FPGM（Filter Pruning via Geometric Median）方法。其基本思想是基于geometric median来去除冗余的参数。
@@ -26,8 +27,9 @@ original articals:
 1900s~ *OBD*, *OBS*
 始祖级别，计算近似Hessian矩阵比较费时
 
-2016~ *Pruning Convolutional Neural Networks for Resource Efficient Transfer Learning*
-基于Taylor展开，目标函数相对于activation的展开式中一阶项的绝对值作为剪枝指标，避免了二阶项(Hessian矩阵)的计算
+2017~ [Pruning Convolutional Neural Networks for Resource Efficient Transfer Learning](https://arxiv.org/abs/1611.06440)
+
+作者将裁剪问题当做一个组合优化问题：从众多的权重参数中选择一个最优的组合B，使得被裁剪的模型的代价函数的损失衰减最小。这也是OBD的思路，但是OBD的方法需要求二阶导数（Hessian矩阵），实现起来难度较大，而本文提出的Taylor expansion的方法可以很好的解决这个问题：基于Taylor展开，目标函数相对于activation的展开式中一阶项的绝对值作为剪枝指标。这样做还有一个优点就是，可以在训练的反向过程中将梯度记录下来，然后与feature map的activation直接相乘，可以达到边训练边裁剪的效果。
 
 2018~ *SNIP: Single-shot Network Pruning based on Connection Sensitivity*
 将归一化的目标函数相对于参数的导数绝对值作为剪枝指标
@@ -50,6 +52,13 @@ original articals:
 ### 考虑了参数间的相互关系（寻找全局最优解）
 贪心算法的缺点就是只能找到局部最优解，因为它忽略了参数间的相互关系。那自然肯定会有一些方法会尝试考虑参数间的相互关系，试图找到全局更优解。
 
+**基于熵的剪枝**
+
+2017~ [An Entropy-based Pruning Method for CNN Compression](https://arxiv.org/pdf/1706.05791.pdf)
+
+作者认为通过weight值的大小很难判定filter的重要性，通过这个来裁剪的话有可能裁掉一些有用的filter。因此作者提出了一种基于熵值的裁剪方式，利用熵值来判定filter的重要性。出发点是对于分类有决定作用的filter对于不同的输入会带来更多信息量。作者将每一层的输出通过一个Global average Pooling将feature map转换为一个长度为c（filter数量）的向量，对于n张图像可以得到一个n*c的矩阵，对于每一个filter，将它分为m个bin，统计每个bin的概率，然后计算它的熵值 利用熵值来判定filter的重要性，再对不重要的filter进行裁剪。
+
+在retrain中，作者使用了这样的策略，即每裁剪完一层，通过少数几个迭代来恢复部分的性能，当所有层都裁剪完之后，再通过较多的迭代来恢复整体的性能，作者提出，在每一层裁剪过后只使用很少的训练步骤来恢复性能，能够有效的避免模型进入到局部最优。作者将自己的retrain方式与传统的finetuning方式进行比较，发现作者的方法能够有效的减少retrain的步骤，并也能达到不错的效果。（Soft Pruning）
 
 **离散空间下的搜索**
 2015~ *Structured Pruning of Deep Convolutional Neural Networks*
